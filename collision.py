@@ -2,7 +2,7 @@ import numpy as np
 
 def get_delt_v(m,I_inv,r_c,vi,Li):
     """
-    returns delta v. plane of collision must have normal in k_hat direction
+    returns energy conservation delta v. plane of collision must have normal in k_hat direction
     inputs:
     m) mass,
     I_inv) inverted inertia tensor,
