@@ -167,13 +167,6 @@ class Block:
                 nodes_below.append(corners[i])
         return nodes_below
 
-    def get_nodes_below2(self,step_com_node,step_corners):
-        nodes_below=[]
-        for i in range(0,len(step_corners)):
-            if step_corners[i].p[2]+step_com_node.p[2]<=self.floor_tol:
-                nodes_below.append(step_corners[i])
-        return nodes_below
-
     def get_nodes_above(self,step_com_node,step_corners,corners):
         nodes_above=[]
         for i in range(0,len(step_corners)):
@@ -192,44 +185,6 @@ class Block:
             delt_v=ar([0,0,self.vlc*delt_v[0]])
         delt_L=com_node.m*np.dot(r_c,delt_v)
         return delt_v,delt_L
-
-    def do_collide_before(self,step_com_node,step_corners,corners,o_tens,ang_mom,com_node):
-        #does collision as if happening at step before corner goes below floor
-        nodes_below=self.get_nodes_below(step_com_node,step_corners,corners)
-        r=ar([0,0,0])
-        count=0
-        for n in nodes_below:
-            r=r+n.p
-            count+=1
-        r=r/count
-        (delt_v,delt_L)=self.get_delt_v_L(r=r,o_tens=o_tens,ang_mom=ang_mom,com_node=com_node)
-        com_node.v=com_node.v+delt_v
-        ang_mom=ang_mom+delt_L
-        w=self.get_corr_w(o_tens,ang_mom)
-        w_hat=vf.unit(w)
-        rad=vf.mag(w)*self.dt_col
-        step_com_node=self.get_translate(com_node,self.dt_col)
-        step_corners=self.get_rotate_corners(corners,w_hat,rad)
-        return step_com_node,step_corners,ang_mom,com_node,w_hat,rad
-
-    def do_collide_after(self,step_com_node,step_corners,corners,step_o_tens,ang_mom,):
-        #does collision at step in which corner is below floor
-        nodes_below=self.get_nodes_below2(step_com_node,step_corners)
-        r=ar([0,0,0])
-        count=0
-        for n in nodes_below:
-            r=r+n.p
-            count+=1
-        r=r/count
-        (delt_v,delt_L)=self.get_delt_v_L(r=r,o_tens=step_o_tens,ang_mom=ang_mom,com_node=step_com_node)
-        step_com_node.v=step_com_node.v+delt_v
-        ang_mom=ang_mom+delt_L
-        w=self.get_corr_w(step_o_tens,ang_mom)
-        w_hat=vf.unit(w)
-        rad=vf.mag(w)*self.dt_col
-        step_com_node=self.get_translate(step_com_node,self.dt_col)
-        step_corners=self.get_rotate_corners(corners,w_hat,rad)
-        return step_com_node,step_corners,ang_mom,w_hat,rad
 
     def collision_check(self,step_com_node,step_corners,w_hat,rad):
         if step_com_node.p[2]<self.check_height:
@@ -263,7 +218,21 @@ class Block:
                     corners=step_corners
                     o_tens=self.get_rot_o_tens2(o_tens,w_hat,rad)
                 else:
-                    (step_com_node,step_corners,ang_mom,com_node,w_hat,rad)=self.do_collide_before(step_com_node,step_corners,corners,o_tens,ang_mom,com_node)
+                    nodes_below=self.get_nodes_below(step_com_node,step_corners,corners)
+                    r=ar([0,0,0])
+                    count=0
+                    for n in nodes_below:
+                        r=r+n.p
+                        count+=1
+                    r=r/count
+                    (delt_v,delt_L)=self.get_delt_v_L(r=r,o_tens=o_tens,ang_mom=ang_mom,com_node=com_node)
+                    com_node.v=com_node.v+delt_v
+                    ang_mom=ang_mom+delt_L
+                    w=self.get_corr_w(o_tens,ang_mom)
+                    w_hat=vf.unit(w)
+                    rad=vf.mag(w)*self.dt_col
+                    step_com_node=self.get_translate(com_node,self.dt_col)
+                    step_corners=self.get_rotate_corners(corners,w_hat,rad)
                     if not self.nodes_below(step_com_node,step_corners):
                         print('all good')
                         com_node=step_com_node
@@ -277,19 +246,11 @@ class Block:
                             ang_mom=ar([0,0,ang_mom[2]])
                             self.on_ground=True
                         else:
-                            step_o_tens=self.get_rot_o_tens2(o_tens,w_hat,rad)
-                            (step_com_node,step_corners,ang_mom,w_hat,rad)=self.do_collide_after(step_com_node,step_corners,corners,step_o_tens,ang_mom)
-                            if not self.nodes_below(step_com_node,step_corners):
-                                print('all good 2')
-                                com_node=step_com_node
-                                corners=step_corners
-                                o_tens=self.get_rot_o_tens2(o_tens,w_hat,rad)
-                            else:
-                                print('fail, on ground')
-                                com_node.v=ar([0,0,0])
-                                com_node.a=ar([0,0,0])
-                                ang_mom=ar([0,0,ang_mom[2]])
-                                self.on_ground=True
+                            print('on ground maybe fail')
+                            com_node.v=ar([0,0,0])
+                            com_node.a=ar([0,0,0])
+                            ang_mom=ar([0,0,ang_mom[2]])
+                            self.on_ground=True
             else:
                 w=self.get_corr_w(self.o_tens,self.ang_mom)
                 rad=vf.mag(w)*self.dt
@@ -336,15 +297,14 @@ class Block:
         return block_ax,energy_ax
 
     def get_energy_ax(self,energy_ax):
-        energy_ax.plot(self.times,self.trans_KE,lw=2,color='blue',label='translational kinetic')
+        energy_ax.plot(self.times,self.trans_KE,lw=2,color='blue')
         energy_ax.scatter(self.times[-1],self.trans_KE[-1],color='red',lw=5)
-        energy_ax.plot(self.times,self.rot_KE,lw=2,color='black',label='rotational kinetic')
+        energy_ax.plot(self.times,self.rot_KE,lw=2,color='black')
         energy_ax.scatter(self.times[-1],self.rot_KE[-1],color='green',lw=5)
-        energy_ax.plot(self.times,self.PE,lw=2,color='orange',label='potential')
-        energy_ax.scatter(self.times[-1],self.PE[-1],color='brown',lw=5)
-        energy_ax.plot(self.times,self.TE,lw=2,color='purple',label='total')
+        energy_ax.plot(self.times,self.PE,lw=2,color='orange')
+        energy_ax.scatter(self.times[-1],self.PE[-1],color='yellow',lw=5)
+        energy_ax.plot(self.times,self.TE,lw=2,color='purple')
         energy_ax.scatter(self.times[-1],self.TE[-1],color='grey',lw=5)
-        energy_ax.legend(loc='upper right')
         plt.xlabel('Time')
         plt.ylabel('Energy')
         return energy_ax
@@ -407,5 +367,5 @@ class Block:
         self.tf=tf
         self.steps_per_frame=steps_per_frame
         self.camera_rot=camera_rot
-        self.fig=plt.figure(figsize=(8,12))
+        self.fig=plt.figure(figsize=(9,12))
         animate.do_60fps(save_name=save_name,fig=self.fig,anim_init=self.anim_init,frame=self.frame_energy,tot_frames=int(tf/(dt*steps_per_frame)))
